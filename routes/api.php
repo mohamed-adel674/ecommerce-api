@@ -7,6 +7,7 @@ use App\Http\Controllers\CartController;
 use App\Http\Controllers\Admin\ProductController; 
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\CheckoutController; // سننشئ هذا المتحكم الآن
 
 
 // ... الخ
@@ -61,3 +62,13 @@ Route::middleware('auth:sanctum')->group(function () {
     // Route::post('/cart/add', ...); 
 });
 
+
+
+
+Route::middleware('auth:sanctum')->group(function () {
+    
+    // ... مسارات Auth و Cart ...
+
+    // ** مسار معالجة الطلب (Checkout) **
+    Route::post('/checkout', [CheckoutController::class, 'processCheckout']); 
+});
