@@ -65,6 +65,9 @@ class CartController extends Controller
     }
 
     // ... يمكنك إضافة دوال update و destroy بنفس المنهجية
+    
+    
+    
     /**
      * تحديث كمية عنصر محدد في السلة.
      */

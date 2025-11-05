@@ -7,6 +7,9 @@ use App\Http\Controllers\CartController;
 use App\Http\Controllers\Admin\ProductController; 
 use App\Http\Controllers\ProductController;
 
+use App\Http\Controllers\AuthController;
+
+
 // ... الخ
 
 // مسارات سلة المشتريات (محمية)
@@ -34,3 +37,11 @@ Route::get('products', [ProductController::class, 'index']);
 // استخدام {product:slug} لتحديد أن الـ Route Model Binding يجب أن يتم عبر حقل slug
 Route::get('products/{product:slug}', [ProductController::class, 'show']); 
 Route::get('categories', [ProductController::class, 'categories']);
+
+
+// مسارات المصادقة (عامة)
+Route::post('register', [AuthController::class, 'register']);
+Route::post('login', [AuthController::class, 'login']);
+
+// مسار تسجيل الخروج (محمي بـ Sanctum Token)
+Route::middleware('auth:sanctum')->post('logout', [AuthController::class, 'logout']);
