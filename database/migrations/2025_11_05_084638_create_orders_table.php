@@ -13,6 +13,11 @@ return new class extends Migration
     {
         Schema::create('orders', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('user_id')->constrained()->onDelete('cascade');
+            $table->string('status')->default('pending'); // حالة الطلب (قيد الانتظار/مكتمل/ملغى)
+            $table->decimal('total_price', 10, 2); // السعر الإجمالي للطلب
+            $table->text('shipping_address'); // عنوان الشحن
+            $table->string('payment_status')->default('pending'); // حالة الدفع
             $table->timestamps();
         });
     }
