@@ -54,10 +54,8 @@ Route::post('/register', [AuthController::class, 'register']); // سنضيف ه�
 // 2. المسارات المحمية (تحتاج Token)
 // نقوم بتجميع المسارات التي تحتاج مصادقة داخل هذا الـ Middleware
 Route::middleware('auth:sanctum')->group(function () {
-    
     // هذا المسار لن يعمل إلا إذا تم إرسال Token صالح
     Route::get('/user', [AuthController::class, 'userDetails']);
-
     // هنا ستضاف مسارات سلة المشتريات والطلبات لاحقاً
     // Route::post('/cart/add', ...); 
 });
@@ -66,9 +64,16 @@ Route::middleware('auth:sanctum')->group(function () {
 
 
 Route::middleware('auth:sanctum')->group(function () {
-    
     // ... مسارات Auth و Cart ...
-
     // ** مسار معالجة الطلب (Checkout) **
     Route::post('/checkout', [CheckoutController::class, 'processCheckout']); 
 });
+
+
+
+// مسارات غير محمية (يستخدمها Stripe والمتصفح)
+Route::get('/checkout/success/{order}', [CheckoutController::class, 'success'])->name('checkout.success');
+Route::get('/checkout/cancel/{order}', [CheckoutController::class, 'cancel'])->name('checkout.cancel');
+
+// مسار الـ Webhook (مطلوب من Cashier لتلقي إشعارات الدفع)
+Route::post('stripe/webhook', '\Laravel\Cashier\Http\Controllers\WebhookController@handleWebhook');

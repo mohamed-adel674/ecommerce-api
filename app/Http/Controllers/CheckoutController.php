@@ -4,53 +4,56 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Route; // مطلوب لإنشاء روابط route()
 
 class CheckoutController extends Controller
 {
+    /**
+     * POST /checkout
+     * معالجة الطلب (التحقق من المخزون، إنشاء الطلب) وإنشاء جلسة دفع Stripe.
+     */
     public function processCheckout(Request $request)
     {
         $user = Auth::user();
         
-        // 1. التحقق من وجود سلة مشتريات للمستخدم وبها عناصر
+        // 1. التحقق من السلة
         $cart = $user->cart()->with('items.product')->first();
 
         if (!$cart || $cart->items->isEmpty()) {
             return response()->json([
-                'message' => '❌ لا يمكن متابعة الطلب. سلة المشتريات فارغة.'
-            ], 400); // 400 Bad Request
+                'message' => 'Cannot proceed. The shopping cart is empty.'
+            ], 400); // Bad Request
         }
         
         // 2. استخدام المعاملات (Database Transaction)
-        // هذا يضمن أنه إذا فشلت أي خطوة (مثل تحديث المخزون)، يتم التراجع عن كل التغييرات.
         try {
-            DB::beginTransaction();
+            DB::beginTransaction(); // بداية المعاملة
 
-            // 3. إنشاء سجل الطلب الرئيسي
+            // 3. إنشاء سجل الطلب الرئيسي (المنطق القديم من #013)
             $order = Order::create([
                 'user_id' => $user->id,
-                'status' => 'pending', // حالة أولية
-                // TODO: (مهمة لاحقة) أضف هنا حقول العنوان والدفع
-                'shipping_address' => $request->shipping_address ?? 'Not specified',
-                'payment_method' => 'Stripe (Pending)',
-                'total_amount' => 0, // سيتم تحديثه لاحقاً
+                'status' => 'pending', 
+                'shipping_address' => $request->shipping_address ?? 'Default Address',
+                'payment_method' => 'Pending Payment',
+                'total_amount' => 0, 
             ]);
 
             $total = 0;
             $orderItemsData = [];
 
-            // 4. معالجة عناصر السلة ونقلها للطلب
+            // 4. معالجة عناصر السلة ونقلها للطلب مع التحقق من المخزون
             foreach ($cart->items as $cartItem) {
                 $product = $cartItem->product;
 
                 // التحقق من المخزون
                 if ($product->stock < $cartItem->quantity) {
-                    DB::rollBack(); // التراجع عن إنشاء الطلب
+                    DB::rollBack(); 
                     return response()->json([
-                        'message' => '❌ المخزون غير كافٍ للمنتج: ' . $product->name
+                        'message' => 'Insufficient stock for product: ' . $product->name
                     ], 400);
                 }
 
@@ -68,37 +71,77 @@ class CheckoutController extends Controller
                 ]);
             }
             
-            // إضافة عناصر الطلب مرة واحدة
+            // تحديث الطلب وحذف السلة
             $order->items()->saveMany($orderItemsData);
-
-            // 5. تحديث الإجمالي الكلي للطلب وحذف محتويات السلة
             $order->total_amount = $total;
             $order->save();
-            
-            // حذف عناصر السلة بعد نقلها للطلب
             $cart->items()->delete();
             
             // 6. تأكيد المعاملة
-            DB::commit();
+            DB::commit(); 
+            
+            // 7. المنطق الجديد للمرحلة #014: تكامل الدفع
+            
+            $amountInCents = round($total * 100); 
 
-            // 7. (مهمة لاحقة): هنا يجب دمج منطق الدفع (Stripe/Cashier)
+            $checkoutSession = $user->checkout([
+                [
+                    'price_data' => [
+                        'currency' => 'usd', // تأكد من العملة
+                        'unit_amount' => $amountInCents,
+                        'product_data' => [
+                            'name' => 'Order #' . $order->id . ' Payment',
+                            'description' => 'E-commerce Order Payment',
+                        ],
+                    ],
+                    'quantity' => 1,
+                ],
+            ], [
+                // استخدام دوال route() لتحديد مسارات الويب
+                'success_url' => route('checkout.success', ['order' => $order->id]), 
+                'cancel_url' => route('checkout.cancel', ['order' => $order->id]),  
+                'metadata' => [
+                    'order_id' => $order->id,
+                ],
+            ]);
+            
+            // حفظ ID الجلسة في الطلب
+            $order->stripe_session_id = $checkoutSession->id;
+            $order->save();
 
+            // إرجاع رابط الدفع إلى العميل
             return response()->json([
-                'message' => '✅ تم إنشاء الطلب بنجاح. في انتظار الدفع.',
+                'message' => 'Order created successfully. Redirecting to payment.',
                 'order_id' => $order->id,
-                'total' => $total,
-                // يمكنك هنا إرجاع رابط الدفع إذا كنت تستخدم Stripe
-                // 'payment_url' => '...' 
+                'checkout_url' => $checkoutSession->url, 
             ]);
 
         } catch (\Exception $e) {
             DB::rollBack();
-            // تسجيل الخطأ للإدارة
             \Log::error('Checkout failed: ' . $e->getMessage()); 
 
             return response()->json([
-                'message' => '❌ فشل في معالجة الطلب بسبب خطأ داخلي. يرجى المحاولة لاحقاً.'
+                'message' => 'Failed to process checkout due to an internal error. Please try again later.'
             ], 500);
         }
+    }
+    
+    /**
+     * مسار التوجيه بعد نجاح الدفع (يتم استدعاؤه بواسطة متصفح العميل من Stripe)
+     */
+    public function success(Order $order)
+    {
+        // توجيه العميل لصفحة في الفرونت إند لمعالجة عرض رسالة النجاح
+        // يجب أن يتم تحديث حالة الطلب عبر Webhook وليس هنا
+        return redirect('https://your-frontend.com/order-success?order_id=' . $order->id); 
+    }
+
+    /**
+     * مسار التوجيه بعد إلغاء الدفع (يتم استدعاؤه بواسطة متصفح العميل من Stripe)
+     */
+    public function cancel(Order $order)
+    {
+        // توجيه العميل لصفحة في الفرونت إند لعرض رسالة الإلغاء
+        return redirect('https://your-frontend.com/cart?status=cancelled');
     }
 }
