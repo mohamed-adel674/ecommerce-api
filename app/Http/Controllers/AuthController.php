@@ -13,29 +13,34 @@ class AuthController extends Controller
     /**
      * تسجيل مستخدم جديد (Register).
      */
-    public function register(Request $request): JsonResponse
+    public function register(Request $request)
     {
+        // 1. التحقق من صحة البيانات (Validation)
         $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users', // البريد يجب أن يكون فريدًا
-            'password' => 'required|string|min:8|confirmed',
+            'email' => 'required|string|email|max:255|unique:users', // تأكد من أنه فريد
+            'password' => 'required|string|min:8|confirmed', // 'confirmed' تتطلب حقل password_confirmation
         ]);
 
+        // 2. إنشاء المستخدم وتشفير كلمة المرور
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
-            'password' => Hash::make($request->password), // تشفير كلمة المرور
+            // ضروري جداً: تشفير كلمة المرور قبل حفظها
+            'password' => Hash::make($request->password), 
         ]);
 
-        // إنشاء رمز الوصول (Token)
-        $token = $user->createToken('auth_token')->plainTextToken;
+        // 3. إصدار الـ Token مباشرة (لتسجيل دخول تلقائي بعد التسجيل)
+        $token = $user->createToken('authToken')->plainTextToken;
 
+        // 4. إرجاع الاستجابة الناجحة
         return response()->json([
-            'message' => 'User registered successfully',
+            'token' => $token,
             'user' => $user,
-            'access_token' => $token, // يجب حفظ هذا الرمز في الواجهة الأمامية
-        ], 201);
+            'message' => '✅ تم إنشاء حسابك بنجاح وتسجيل دخولك تلقائياً.'
+        ], 201); // 201 Created هو رمز الاستجابة القياسي لإنشاء مورد جديد
     }
+    
 
     /**
      * تسجيل دخول المستخدم (Login).
@@ -72,6 +77,8 @@ class AuthController extends Controller
         ]);
     }
 
+    
+
 public function userDetails(Request $request)
     {
         // عند استخدام 'auth:sanctum' middleware، يتم تخزين بيانات المستخدم
@@ -81,6 +88,11 @@ public function userDetails(Request $request)
             'user' => $request->user()
         ]);
     }
+
+
+
+
+
     /**
      * تسجيل خروج المستخدم (Logout).
      */

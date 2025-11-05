@@ -6,7 +6,6 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\CartController;
 use App\Http\Controllers\Admin\ProductController; 
 use App\Http\Controllers\ProductController;
-
 use App\Http\Controllers\AuthController;
 
 
@@ -45,3 +44,20 @@ Route::post('login', [AuthController::class, 'login']);
 
 // مسار تسجيل الخروج (محمي بـ Sanctum Token)
 Route::middleware('auth:sanctum')->post('logout', [AuthController::class, 'logout']);
+
+
+// 1. المسارات العامة (لا تحتاج Token)
+Route::post('/login', [AuthController::class, 'login']); 
+Route::post('/register', [AuthController::class, 'register']); // سنضيف هذه لاحقاً
+
+// 2. المسارات المحمية (تحتاج Token)
+// نقوم بتجميع المسارات التي تحتاج مصادقة داخل هذا الـ Middleware
+Route::middleware('auth:sanctum')->group(function () {
+    
+    // هذا المسار لن يعمل إلا إذا تم إرسال Token صالح
+    Route::get('/user', [AuthController::class, 'userDetails']);
+
+    // هنا ستضاف مسارات سلة المشتريات والطلبات لاحقاً
+    // Route::post('/cart/add', ...); 
+});
+
