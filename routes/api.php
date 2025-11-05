@@ -5,6 +5,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\CartController;
 use App\Http\Controllers\Admin\ProductController; 
+use App\Http\Controllers\ProductController;
+
 // ... الخ
 
 // مسارات سلة المشتريات (محمية)
@@ -25,3 +27,10 @@ Route::middleware('auth:sanctum')->prefix('cart')->group(function () {
     Route::put('/update/{cartItem}', [CartController::class, 'update']);
     Route::delete('/remove/{cartItem}', [CartController::class, 'destroy']);
 });
+
+
+// مسارات عامة لا تحتاج لتسجيل دخول
+Route::get('products', [ProductController::class, 'index']);
+// استخدام {product:slug} لتحديد أن الـ Route Model Binding يجب أن يتم عبر حقل slug
+Route::get('products/{product:slug}', [ProductController::class, 'show']); 
+Route::get('categories', [ProductController::class, 'categories']);
