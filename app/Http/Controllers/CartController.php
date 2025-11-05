@@ -7,6 +7,7 @@ use App\Models\Cart;
 use App\Models\CartItem;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth; // لاستخدام المستخدم الحالي
+use App\Http\Requests\UpdateCartRequest;
 
 class CartController extends Controller
 {
@@ -15,15 +16,15 @@ class CartController extends Controller
     {
         // 1. جلب بيانات المستخدم والسلة
         // Auth::user() هو المستخدم المسجل دخوله حالياً
-        $user = Auth::user(); 
+        $user = Auth::user();
 
         // جلب السلة للمستخدم، أو إنشاؤها إذا لم تكن موجودة بعد
-        $cart = $user->cart()->firstOrCreate([]); 
+        $cart = $user->cart()->firstOrCreate([]);
 
         // 2. التحقق من وجود العنصر في السلة
         $cartItem = $cart->items()
-                         ->where('product_id', $request->product_id)
-                         ->first();
+            ->where('product_id', $request->product_id)
+            ->first();
 
         if ($cartItem) {
             // إذا كان موجوداً: قم بزيادة الكمية المطلوبة
@@ -47,6 +48,8 @@ class CartController extends Controller
         ], 201);
     }
 
+
+
     // 2. منطق عرض السلة
     public function index()
     {
@@ -62,4 +65,40 @@ class CartController extends Controller
     }
 
     // ... يمكنك إضافة دوال update و destroy بنفس المنهجية
+    /**
+     * تحديث كمية عنصر محدد في السلة.
+     */
+    public function update(UpdateCartRequest $request, CartItem $cartItem)
+    {
+        // 1. الأمان: التحقق من أن العنصر يخص المستخدم الحالي
+        // تأكد أن cart_item.cart_id يطابق cart_id للمستخدم الحالي
+        if ($cartItem->cart->user_id !== Auth::id()) {
+            return response()->json(['message' => 'Unauthorized action.'], 403);
+        }
+
+        // 2. تحديث الكمية
+        $cartItem->quantity = $request->quantity;
+        $cartItem->save();
+
+        return response()->json([
+            'message' => 'Cart item quantity updated successfully.',
+            'cart_item' => $cartItem->load('product'),
+        ]);
+    }
+
+    /**
+     * حذف عنصر محدد من السلة.
+     */
+    public function destroy(CartItem $cartItem)
+    {
+        // 1. الأمان: التحقق من أن العنصر يخص المستخدم الحالي (نفس منطق التحديث)
+        if ($cartItem->cart->user_id !== Auth::id()) {
+            return response()->json(['message' => 'Unauthorized action.'], 403);
+        }
+
+        // 2. حذف العنصر
+        $cartItem->delete();
+
+        return response()->json(null, 204); // 204: نجاح العملية بدون إرجاع محتوى
+    }
 }
