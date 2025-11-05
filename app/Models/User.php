@@ -5,10 +5,25 @@ namespace App\Models;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
-use Illuminate\Notifications\Notifiable;
+use Illuminate\Notifications\Notifiable;use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+
 
 class User extends Authenticatable
 {
+
+    public function cart(): HasOne
+{
+    // المستخدم لديه سلة واحدة (واحد لواحد)
+    return $this->hasOne(Cart::class);
+}
+
+public function orders(): HasMany
+{
+    // المستخدم لديه العديد من الطلبات (واحد لمتعدد)
+    return $this->hasMany(Order::class);
+}
+
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable;
 
