@@ -2,23 +2,39 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Order extends Model
 {
-    //protected $guarded = [];
+    use HasFactory;
 
-    public function user(): BelongsTo
+    /**
+     * الحقول التي يمكن تعبئتها بالجملة.
+     * يجب إضافة 'stripe_session_id' للسماح بحفظه.
+     */
+    protected $fillable = [
+        'user_id', 
+        'status', 
+        'shipping_address', 
+        'payment_method', 
+        'total_amount',
+        'stripe_session_id', // <--- هذا هو الحقل الضروري للدفع عبر Stripe
+    ];
+
+    /**
+     * تحديد العلاقة مع المستخدم الذي قام بإنشاء الطلب.
+     */
+    public function user()
     {
-        // الطلب ينتمي لمستخدم واحد
         return $this->belongsTo(User::class);
     }
 
-    public function items(): HasMany
+    /**
+     * تحديد العلاقة مع عناصر الطلب.
+     */
+    public function items()
     {
-        // الطلب لديه العديد من عناصر الطلب (OrderItem)
         return $this->hasMany(OrderItem::class);
     }
 }

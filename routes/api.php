@@ -1,79 +1,85 @@
-// routes/api.php
 <?php
 
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\CartController;
-use App\Http\Controllers\Admin\ProductController; 
-use App\Http\Controllers\ProductController;
+// استيراد جميع المتحكمات
 use App\Http\Controllers\AuthController;
-use App\Http\Controllers\CheckoutController; // سننشئ هذا المتحكم الآن
+use App\Http\Controllers\ProductController; // المتحكم العام للمنتجات
+use App\Http\Controllers\CartController;
+use App\Http\Controllers\CheckoutController;
+// يجب التأكد أن هذه الفئات موجودة
+use App\Http\Controllers\Admin\ProductController as AdminProductController; // متحكم الأدمن للمنتجات
+use App\Http\Controllers\Admin\OrderController as AdminOrderController; // متحكم الأدمن للطلبات
 
+/*
+|--------------------------------------------------------------------------
+| API Routes
+|--------------------------------------------------------------------------
+| هنا يتم تعريف مسارات الـ API (عادةً ما ترجع بيانات JSON)
+*/
 
-// ... الخ
+// --- 1. المسارات العامة (Public Routes) ---
+// لا تحتاج مصادقة (Auth Token)
 
-// مسارات سلة المشتريات (محمية)
-Route::middleware('auth:sanctum')->prefix('cart')->group(function () {
-    Route::get('/', [CartController::class, 'index']);
-    // ...
-});
-
-// مسارات الأدمن (محمية)
-Route::middleware('auth:sanctum')->prefix('admin')->group(function () {
-    Route::apiResource('products', ProductController::class);
-    // ...
-});
-// مسارات سلة المشتريات (محمية بضرورة تسجيل الدخول)
-Route::middleware('auth:sanctum')->prefix('cart')->group(function () {
-    Route::get('/', [CartController::class, 'index']);
-    Route::post('/add', [CartController::class, 'store']);
-    Route::put('/update/{cartItem}', [CartController::class, 'update']);
-    Route::delete('/remove/{cartItem}', [CartController::class, 'destroy']);
-});
-
-
-// مسارات عامة لا تحتاج لتسجيل دخول
-Route::get('products', [ProductController::class, 'index']);
-// استخدام {product:slug} لتحديد أن الـ Route Model Binding يجب أن يتم عبر حقل slug
-Route::get('products/{product:slug}', [ProductController::class, 'show']); 
-Route::get('categories', [ProductController::class, 'categories']);
-
-
-// مسارات المصادقة (عامة)
-Route::post('register', [AuthController::class, 'register']);
-Route::post('login', [AuthController::class, 'login']);
-
-// مسار تسجيل الخروج (محمي بـ Sanctum Token)
-Route::middleware('auth:sanctum')->post('logout', [AuthController::class, 'logout']);
-
-
-// 1. المسارات العامة (لا تحتاج Token)
+// مسارات المصادقة (Auth)
+Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']); 
-Route::post('/register', [AuthController::class, 'register']); // سنضيف هذه لاحقاً
 
-// 2. المسارات المحمية (تحتاج Token)
-// نقوم بتجميع المسارات التي تحتاج مصادقة داخل هذا الـ Middleware
-Route::middleware('auth:sanctum')->group(function () {
-    // هذا المسار لن يعمل إلا إذا تم إرسال Token صالح
-    Route::get('/user', [AuthController::class, 'userDetails']);
-    // هنا ستضاف مسارات سلة المشتريات والطلبات لاحقاً
-    // Route::post('/cart/add', ...); 
-});
+// مسارات المنتجات العامة (للعرض فقط)
+Route::get('products', [ProductController::class, 'index']);
+// استخدام {product:slug} للبحث بالـ slug
+Route::get('products/{product:slug}', [ProductController::class, 'show']); 
 
 
+// --- 2. مسارات الويب Hook (يجب أن تكون في routes/web.php لكن نضعها هنا مؤقتاً لسهولة المراجعة) ---
+// يجب وضع مسارات Webhook (Stripe) و Success/Cancel في routes/web.php
+// لأنها تتعامل مع إعادة توجيه المتصفح، لكن سنتركها هنا للمراجعة.
 
-
-Route::middleware('auth:sanctum')->group(function () {
-    // ... مسارات Auth و Cart ...
-    // ** مسار معالجة الطلب (Checkout) **
-    Route::post('/checkout', [CheckoutController::class, 'processCheckout']); 
-});
-
-
-
-// مسارات غير محمية (يستخدمها Stripe والمتصفح)
+// مسارات الإعادة التوجيه لـ Stripe (يستخدمها المتصفح بعد الدفع)
 Route::get('/checkout/success/{order}', [CheckoutController::class, 'success'])->name('checkout.success');
 Route::get('/checkout/cancel/{order}', [CheckoutController::class, 'cancel'])->name('checkout.cancel');
 
-// مسار الـ Webhook (مطلوب من Cashier لتلقي إشعارات الدفع)
-Route::post('stripe/webhook', '\Laravel\Cashier\Http\Controllers\WebhookController@handleWebhook');
+// مسار الـ Webhook (يستخدمه خادم Stripe لتأكيد الدفع)
+Route::post('stripe/webhook', \Laravel\Cashier\Http\Controllers\WebhookController::class);
+
+
+// --- 3. المسارات المحمية (Authenticated Routes) ---
+// تحتاج إلى Sanctum Token سارٍ (للكاتب والعميل)
+Route::middleware('auth:sanctum')->group(function () {
+    
+    // مسار تسجيل الخروج ومعلومات المستخدم
+    Route::post('/logout', [AuthController::class, 'logout']);
+    Route::get('/user', [AuthController::class, 'userDetails']);
+
+    // مسارات سلة المشتريات
+    Route::prefix('cart')->group(function () {
+        Route::get('/', [CartController::class, 'index']);
+        Route::post('/add', [CartController::class, 'store']);
+        Route::put('/update/{cartItem}', [CartController::class, 'update']);
+        Route::delete('/remove/{cartItem}', [CartController::class, 'destroy']);
+    });
+
+    // مسار معالجة الطلب (Checkout) - المرحلة #013/014
+    Route::post('/checkout', [CheckoutController::class, 'processCheckout']); 
+
+    // --- 4. مسارات لوحة تحكم الأدمن (Admin Protected Routes) ---
+    // يجب تطبيق الواسطة 'auth:sanctum' و 'role:admin' معاً هنا لضمان عمل الحماية
+    Route::group([
+        'prefix' => 'admin', 
+        'middleware' => ['auth:sanctum', 'role:admin'] // التصحيح: إضافة auth:sanctum مجدداً
+    ], function () {
+        
+        // إدارة المنتجات (المهمة #015)
+        Route::get('/products', [AdminProductController::class, 'index']); 
+        Route::post('/products', [AdminProductController::class, 'store']); 
+        Route::put('/products/{product}', [AdminProductController::class, 'update']); 
+        Route::delete('/products/{product}', [AdminProductController::class, 'destroy']); 
+        
+        // إدارة الطلبات (المهمة #016) - الكود المكتمل
+        // عرض جميع الطلبات
+        Route::get('/orders', [AdminOrderController::class, 'index']); 
+        // عرض تفاصيل طلب واحد
+        Route::get('/orders/{order}', [AdminOrderController::class, 'show']); 
+        // تحديث حالة الطلب
+        Route::put('/orders/{order}/status', [AdminOrderController::class, 'updateStatus']); 
+    });
+});

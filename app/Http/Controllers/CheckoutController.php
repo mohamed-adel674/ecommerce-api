@@ -5,10 +5,12 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Route; 
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
-use Illuminate\Support\Facades\Route; // مطلوب لإنشاء روابط route()
+use App\Models\Cart; // تم إضافة استيراد نموذج السلة بشكل صحيح
 
 class CheckoutController extends Controller
 {
@@ -18,9 +20,13 @@ class CheckoutController extends Controller
      */
     public function processCheckout(Request $request)
     {
+        // 1. التحقق من مصادقة المستخدم
         $user = Auth::user();
+        if (!$user) {
+            return response()->json(['message' => 'Unauthenticated.'], 401);
+        }
         
-        // 1. التحقق من السلة
+        // 2. التحقق من السلة (يجب أن تعمل دالة cart() الآن)
         $cart = $user->cart()->with('items.product')->first();
 
         if (!$cart || $cart->items->isEmpty()) {
@@ -29,11 +35,11 @@ class CheckoutController extends Controller
             ], 400); // Bad Request
         }
         
-        // 2. استخدام المعاملات (Database Transaction)
+        // 3. استخدام المعاملات (Database Transaction) لضمان سلامة البيانات
         try {
             DB::beginTransaction(); // بداية المعاملة
 
-            // 3. إنشاء سجل الطلب الرئيسي (المنطق القديم من #013)
+            // 4. إنشاء سجل الطلب الرئيسي
             $order = Order::create([
                 'user_id' => $user->id,
                 'status' => 'pending', 
@@ -45,11 +51,11 @@ class CheckoutController extends Controller
             $total = 0;
             $orderItemsData = [];
 
-            // 4. معالجة عناصر السلة ونقلها للطلب مع التحقق من المخزون
+            // 5. معالجة عناصر السلة ونقلها للطلب مع التحقق من المخزون
             foreach ($cart->items as $cartItem) {
                 $product = $cartItem->product;
 
-                // التحقق من المخزون
+                // التحقق من المخزون (يجب أن يكون المخزون قابلاً للتحديث/التناقص بشكل حصري داخل المعاملة)
                 if ($product->stock < $cartItem->quantity) {
                     DB::rollBack(); 
                     return response()->json([
@@ -71,23 +77,23 @@ class CheckoutController extends Controller
                 ]);
             }
             
-            // تحديث الطلب وحذف السلة
+            // 6. تحديث الطلب وحذف السلة
             $order->items()->saveMany($orderItemsData);
             $order->total_amount = $total;
             $order->save();
+            
+            // حذف عناصر السلة بعد نقلها إلى الطلب
             $cart->items()->delete();
             
-            // 6. تأكيد المعاملة
+            // 7. تأكيد المعاملة بعد نجاح جميع عمليات قاعدة البيانات
             DB::commit(); 
-            
-            // 7. المنطق الجديد للمرحلة #014: تكامل الدفع
             
             $amountInCents = round($total * 100); 
 
             $checkoutSession = $user->checkout([
                 [
                     'price_data' => [
-                        'currency' => 'usd', // تأكد من العملة
+                        'currency' => 'usd', // تأكد من العملة المستخدمة في مشروعك
                         'unit_amount' => $amountInCents,
                         'product_data' => [
                             'name' => 'Order #' . $order->id . ' Payment',
@@ -99,7 +105,7 @@ class CheckoutController extends Controller
             ], [
                 // استخدام دوال route() لتحديد مسارات الويب
                 'success_url' => route('checkout.success', ['order' => $order->id]), 
-                'cancel_url' => route('checkout.cancel', ['order' => $order->id]),  
+                'cancel_url' => route('checkout.cancel', ['order' => $order->id]), 
                 'metadata' => [
                     'order_id' => $order->id,
                 ],
@@ -118,7 +124,7 @@ class CheckoutController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
-            \Log::error('Checkout failed: ' . $e->getMessage()); 
+            Log::error('Checkout failed for user ' . ($user ? $user->id : 'N/A') . ': ' . $e->getMessage()); 
 
             return response()->json([
                 'message' => 'Failed to process checkout due to an internal error. Please try again later.'
@@ -132,7 +138,7 @@ class CheckoutController extends Controller
     public function success(Order $order)
     {
         // توجيه العميل لصفحة في الفرونت إند لمعالجة عرض رسالة النجاح
-        // يجب أن يتم تحديث حالة الطلب عبر Webhook وليس هنا
+        // (تحديث حالة الطلب يجب أن يتم عبر Webhook)
         return redirect('https://your-frontend.com/order-success?order_id=' . $order->id); 
     }
 
