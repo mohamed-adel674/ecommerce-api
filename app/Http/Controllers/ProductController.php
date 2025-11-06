@@ -2,58 +2,59 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Category;
-use App\Models\Product;
 use Illuminate\Http\Request;
+use App\Models\Product;
 
 class ProductController extends Controller
 {
     /**
-     * عرض قائمة المنتجات العامة (مع التصفية والبحث).
+     * GET /api/products
+     * عرض جميع المنتجات مع دعم البحث والتصفية عبر Query Parameters.
      */
     public function index(Request $request)
     {
-        // بناء الاستعلام: جلب المنتجات النشطة فقط
-        $query = Product::where('is_active', true)->with('category');
+        // نبدأ ببناء استعلام المنتجات الأساسي
+        $query = Product::query()->with('category'); // Always load the category relation
 
-        // مثال على إضافة منطق التصفية بالـ Category ID
-        if ($request->has('category_id')) {
-            $query->where('category_id', $request->category_id);
-        }
-        
-        // مثال على منطق البحث بالاسم
-        if ($request->has('search')) {
-            $query->where('name', 'like', '%' . $request->search . '%');
+        // 1. التصفية حسب البحث (Search by Keyword)
+        if ($request->has('search') && $request->search != '') {
+            $search = $request->search;
+            // البحث عن الكلمة المفتاحية في اسم المنتج أو وصفه
+            $query->where('name', 'LIKE', "%{$search}%")
+                  ->orWhere('description', 'LIKE', "%{$search}%");
         }
 
-        // تطبيق الترتيب وتحديد الصفحات
+        // 2. التصفية حسب القسم (Filter by Category Slug)
+        if ($request->has('category') && $request->category != '') {
+            $categorySlug = $request->category;
+            // يجب أن نستخدم whereHas للفلترة على علاقة القسم (Category)
+            $query->whereHas('category', function ($q) use ($categorySlug) {
+                $q->where('slug', $categorySlug);
+            });
+        }
+
+        // 3. التصفية حسب نطاق السعر (Filter by Price Range)
+        if ($request->has('min_price') && is_numeric($request->min_price)) {
+            $query->where('price', '>=', $request->min_price);
+        }
+
+        if ($request->has('max_price') && is_numeric($request->max_price)) {
+            $query->where('price', '<=', $request->max_price);
+        }
+
+        // 4. تنفيذ الاستعلام وإرجاع النتيجة (ترتيب حسب الأحدث)
         $products = $query->latest()->paginate(15);
         
         return response()->json($products);
     }
 
     /**
-     * عرض تفاصيل منتج واحد (بالـ Slug).
-     * يتم جلب المنتج باستخدام الـ Slug بدلاً من الـ ID.
+     * GET /api/products/{product:slug}
+     * عرض تفاصيل منتج محدد.
      */
     public function show(Product $product)
     {
-        // نتحقق من أن المنتج نشط قبل عرضه
-        if (!$product->is_active) {
-            // نستخدم كود 404 بدلاً من 403 لأن المنتج غير موجود للعامة
-            return response()->json(['message' => 'Product not found or inactive.'], 404); 
-        }
-        
+        // تأكد من أن هذه الدالة موجودة
         return response()->json($product->load('category'));
-    }
-
-    /**
-     * عرض قائمة التصنيفات العامة.
-     */
-    public function categories()
-    {
-        // جلب التصنيفات النشطة فقط (نفترض أن جميع التصنيفات متاحة للعامة)
-        $categories = Category::select('id', 'name', 'slug')->get(); 
-        return response()->json($categories);
     }
 }

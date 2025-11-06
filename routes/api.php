@@ -10,7 +10,7 @@ use App\Http\Controllers\CheckoutController;
 use App\Http\Controllers\Admin\ProductController as AdminProductController; // متحكم الأدمن للمنتجات
 use App\Http\Controllers\Admin\OrderController as AdminOrderController; // متحكم الأدمن للطلبات
 use App\Http\Controllers\OrderController; // سنستخدم متحكم جديد لطلبات العميل
-
+use App\Http\Controllers\Admin\CategoryController as AdminCategoryController;
 
 /*
 |--------------------------------------------------------------------------
@@ -24,12 +24,12 @@ use App\Http\Controllers\OrderController; // سنستخدم متحكم جديد 
 
 // مسارات المصادقة (Auth)
 Route::post('/register', [AuthController::class, 'register']);
-Route::post('/login', [AuthController::class, 'login']); 
+Route::post('/login', [AuthController::class, 'login']);
 
 // مسارات المنتجات العامة (للعرض فقط)
 Route::get('products', [ProductController::class, 'index']);
 // استخدام {product:slug} للبحث بالـ slug
-Route::get('products/{product:slug}', [ProductController::class, 'show']); 
+Route::get('products/{product:slug}', [ProductController::class, 'show']);
 
 
 // --- 2. مسارات الويب Hook (يجب أن تكون في routes/web.php لكن نضعها هنا مؤقتاً لسهولة المراجعة) ---
@@ -47,7 +47,7 @@ Route::post('stripe/webhook', \Laravel\Cashier\Http\Controllers\WebhookControlle
 // --- 3. المسارات المحمية (Authenticated Routes) ---
 // تحتاج إلى Sanctum Token سارٍ (للكاتب والعميل)
 Route::middleware('auth:sanctum')->group(function () {
-    
+
     // مسار تسجيل الخروج ومعلومات المستخدم
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/user', [AuthController::class, 'userDetails']);
@@ -61,33 +61,36 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     // مسار معالجة الطلب (Checkout) - المرحلة #013/014
-    Route::post('/checkout', [CheckoutController::class, 'processCheckout']); 
+    Route::post('/checkout', [CheckoutController::class, 'processCheckout']);
+
+    Route::get('products', [ProductController::class, 'index']);
 
     // --- 4. مسارات لوحة تحكم الأدمن (Admin Protected Routes) ---
     // يجب تطبيق الواسطة 'auth:sanctum' و 'role:admin' معاً هنا لضمان عمل الحماية
     Route::group([
-        'prefix' => 'admin', 
+        'prefix' => 'admin',
         'middleware' => ['auth:sanctum', 'role:admin'] // التصحيح: إضافة auth:sanctum مجدداً
     ], function () {
-        
+
         // إدارة المنتجات (المهمة #015)
-        Route::get('/products', [AdminProductController::class, 'index']); 
-        Route::post('/products', [AdminProductController::class, 'store']); 
-        Route::put('/products/{product}', [AdminProductController::class, 'update']); 
-        Route::delete('/products/{product}', [AdminProductController::class, 'destroy']); 
-        
+        Route::get('/products', [AdminProductController::class, 'index']);
+        Route::post('/products', [AdminProductController::class, 'store']);
+        Route::put('/products/{product}', [AdminProductController::class, 'update']);
+        Route::delete('/products/{product}', [AdminProductController::class, 'destroy']);
+
         // إدارة الطلبات (المهمة #016) - الكود المكتمل
         // عرض جميع الطلبات
-        Route::get('/orders', [AdminOrderController::class, 'index']); 
+        Route::get('/orders', [AdminOrderController::class, 'index']);
         // عرض تفاصيل طلب واحد
-        Route::get('/orders/{order}', [AdminOrderController::class, 'show']); 
+        Route::get('/orders/{order}', [AdminOrderController::class, 'show']);
         // تحديث حالة الطلب
-        Route::put('/orders/{order}/status', [AdminOrderController::class, 'updateStatus']); 
+        Route::put('/orders/{order}/status', [AdminOrderController::class, 'updateStatus']);
 
         // مسارات العميل لسجل الطلبات (المهمة #017)
         Route::get('/orders', [OrderController::class, 'index']);
         Route::get('/orders/{order}', [OrderController::class, 'show']);
 
-
+        // 3. إدارة الأقسام (المهمة #018)
+        Route::apiResource('categories', AdminCategoryController::class);
     });
 });
