@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Order;
 use Illuminate\Support\Facades\Auth;
+use App\Http\Resources\OrderResource;
 
 class OrderController extends Controller
 {
@@ -26,6 +27,8 @@ class OrderController extends Controller
             'message' => 'User order history retrieved successfully.',
             'orders' => $orders
         ]);
+
+        return OrderResource::collection($orders);
     }
 
     /**
@@ -46,5 +49,7 @@ class OrderController extends Controller
             'message' => 'Order details retrieved successfully.',
             'order' => $order->load('items.product')
         ]);
+
+        return new OrderResource($order->load('items.product'));
     }
 }
