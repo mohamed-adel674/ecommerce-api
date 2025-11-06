@@ -9,6 +9,8 @@ use App\Http\Controllers\CheckoutController;
 // يجب التأكد أن هذه الفئات موجودة
 use App\Http\Controllers\Admin\ProductController as AdminProductController; // متحكم الأدمن للمنتجات
 use App\Http\Controllers\Admin\OrderController as AdminOrderController; // متحكم الأدمن للطلبات
+use App\Http\Controllers\OrderController; // سنستخدم متحكم جديد لطلبات العميل
+
 
 /*
 |--------------------------------------------------------------------------
@@ -81,5 +83,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/orders/{order}', [AdminOrderController::class, 'show']); 
         // تحديث حالة الطلب
         Route::put('/orders/{order}/status', [AdminOrderController::class, 'updateStatus']); 
+
+        // مسارات العميل لسجل الطلبات (المهمة #017)
+        Route::get('/orders', [OrderController::class, 'index']);
+        Route::get('/orders/{order}', [OrderController::class, 'show']);
+
+
     });
 });
